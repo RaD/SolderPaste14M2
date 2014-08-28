@@ -14,10 +14,12 @@
 ; Set FUSES: CKSEL1=0, CKSEL0=1 (4800KhZ system clock)
 
 ; Register defines:
-.def	R_TMP	= R16	; temporary register
-.def	R_MODE	= R18	; current mode
-.def	R_CHG	= R19	; 
-.def	R_DELAY = R20	; delay counter
+.def	TMP		= R21
+.def	SHIFT	= R16
+.def	MASK	= R17
+.def	MODE	= R18	; current mode
+.def	CHG		= R19	; 
+.def	DELAY 	= R20	; delay counter
 
 		.CSEG
 		.org	0x0000
@@ -50,44 +52,47 @@ ADC_RDY:
 
 RESET:
 		; stack init
-		ldi		R_TMP, low(RAMEND)
-		out		SPL, R_TMP
+		ldi		TMP, low(RAMEND)
+		out		SPL, TMP
 
 		; check the reset type
-		in		R_TMP, MCUSR
-		cpi		R_TMP, (1<<EXTRF)
+		in		TMP, MCUSR
+		cpi		TMP, (1<<EXTRF)
 		breq	MODE_SWITCH
 
-		; set initial values
-		ldi		R_MODE, 0
-		ldi		R_CHG, 0
+		; set initial TMPues
+		ldi		SHIFT, 0b00110011		; shift TMPue
+		ldi		MASK, 0b00001111		; shift mask
+		ldi		MODE, 1					; current mode
+		ldi		CHG, 1					; switcher
 
 MODE_SWITCH:
 		; switch current mode
-		eor		R_MODE, R_CHG
-		ldi		R_CHG, 0
+		eor		MODE, CHG			; 0 x 1 => 1, 1 x 1 => 0
+
 
 		; clear MCUSR register after Reset
-		ldi		R_TMP, 0
-		out		MCUSR, R_TMP
+		ldi		TMP, 0
+		out		MCUSR, TMP
 
 		; setup interrupt
-		ldi		R_TMP, (1<<PCIE)	; enable Pin Change interrupt
-		out		GIMSK, R_TMP
-		ldi		R_TMP, (1<<PCINT4)	; on PB4
-		out		PCMSK, R_TMP
-
-		// enable interrupt on any change and activate pullups
-		ldi		R_TMP, (1<<ISC00) | (1<<PUD)
-		out		MCUCR, R_TMP
+		ldi		TMP, (1<<PCIE)			; enable Pin Change interrupt
+		out		GIMSK, TMP
+		ldi		TMP, (1<<PCINT4)		; on PB4
+		out		PCMSK, TMP
 
 		; setup port
-		ldi		R_TMP, (1<<DDB3)|(1<<DDB2)|(1<<DDB1)|(1<<DDB0)
-		out		DDRB, R_TMP
+		ldi		TMP, (1<<DDB3)|(1<<DDB2)|(1<<DDB1)|(1<<DDB0)
+		out		DDRB, TMP
 
-		sbi		PORTB, PORTB4	; enable pullup on PB4
+		sbi		PORTB, PORTB4		; enable pullup on PB4
 
-		sei				; global interrupt enable
+		; enable interrupt on any change and activate pullups
+		ldi		TMP, (1<<ISC00) | (1<<PUD)
+		out		MCUCR, TMP
+
+		sei							; global interrupt enable
+
 ; Main Loop
 MAIN:
 		nop
@@ -97,6 +102,23 @@ MAIN:
 
 ; Button handler
 PC_INTO0:
+		push	TMP
+
+		cp		TMP, CHG
+		breq	REVERSE
+
+		rol		SHIFT
+		rjmp	ROTATE
+
+REVERSE:
+		ror		SHIFT
+
+ROTATE:
+		mov		TMP, SHIFT
+		and		TMP, MASK
+		out     PORTB, TMP
+
+		pop		TMP
 		reti
 
 		.exit
