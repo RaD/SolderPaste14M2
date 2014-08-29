@@ -84,6 +84,7 @@ RESET:
 		; set initial values
 		ldi		SHIFT, 0b00110011   ; shift value
 		ldi		MASK, 0b00001111    ; shift mask
+        ldi     DELAY, 0xFF
         ldi     STATE, (1<<DIR_BIT) ; initial
         mov     CHANGE, STATE       ; register is needed for EOR
 
@@ -121,7 +122,21 @@ MAIN:
         sbrc    STATE, MOTOR_BIT    ; skip if bit cleared
         rcall   ROTATION
 		;sleep
+        rcall   DELAYING
 		rjmp	MAIN
+
+
+;;; Delays execution
+;;;
+DELAYING:
+        push    TMP
+        mov     TMP, DELAY
+DELAY_LOOP:
+        dec     TMP
+        nop
+        brne    DELAY_LOOP
+        pop     TMP
+        ret
 
 
 ;;; Function checks the direction and rotate motor by one
