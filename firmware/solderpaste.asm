@@ -24,6 +24,28 @@
 .equ    MOTOR_BIT = 0 ; if set, motor is running
 .equ    DIR_BIT   = 1 ; if set, rotating left
 
+
+;;; Write to port macro.
+.macro outm
+        ldi     TMP, @1
+        out     @0, TMP
+.endm
+
+;;; Rotate left macro
+.macro rolm
+        bst     @0, 7
+        rol     @0
+        bld     @0, 0
+.endm
+
+;;; Rotate right macro
+.macro rorm
+        bst     @0, 0
+        ror     @0
+        bld     @0, 7
+.endm
+
+
 .cseg
 .org	0x0000
 
@@ -53,8 +75,8 @@ PC_INTO0:
         cbr     STATE, (1<<MOTOR_BIT)   ; button isn't pressed
 
         ; finish interrupt
-        ldi     TMP, (1<<PCIF)
-        out     GIFR, TMP
+        outm    GIFR, (1<<PCIF)
+
 
 		pop		TMP
 
@@ -73,8 +95,8 @@ ADC_RDY:
 
 RESET:
 		; stack init
-		ldi		TMP, low(RAMEND)
-		out		SPL, TMP
+        outm    SPL, low(RAMEND)
+
 
 		; check the reset type
 		in		TMP, MCUSR
@@ -95,24 +117,21 @@ MODE_SWITCH:
 		eor		STATE, CHANGE
 
 		; clear MCUSR register after Reset
-		ldi		TMP, 0
-		out		MCUSR, TMP
+		outm	MCUSR, 0
 
 		; setup interrupt
-		ldi		TMP, (1<<PCIE)			; enable Pin Change interrupt
-		out		GIMSK, TMP
-		ldi		TMP, (1<<PCINT4)		; on PB4
-		out		PCMSK, TMP
+		outm	GIMSK, (1<<PCIE)	; enable Pin Change interrupt
+		outm	PCMSK, (1<<PCINT4)	; on PB4
+
 
 		; setup port
-		ldi		TMP, (1<<DDB3)|(1<<DDB2)|(1<<DDB1)|(1<<DDB0)
-		out		DDRB, TMP
+		outm    DDRB, (1<<DDB3)|(1<<DDB2)|(1<<DDB1)|(1<<DDB0)
+
 
 		sbi		PORTB, PORTB4		; enable pullup on PB4
 
 		; enable interrupt on any change and activate pullups
-		ldi		TMP, (1<<ISC00) | (1<<PUD)
-		out		MCUCR, TMP
+		outm    MCUCR, (1<<ISC00) | (1<<PUD)
 
 		sei							; global interrupt enable
 
@@ -145,34 +164,16 @@ ROTATION:
         sbrc    STATE, DIR_BIT  ; skip if bit cleared
         rjmp    MOVE_RIGHT
 
-        rcall   ROTATE_LEFT
+        rolm    SHIFT
 		rjmp	ROTATE
 
 MOVE_RIGHT:
-        rcall   ROTATE_RIGHT
+        rorm    SHIFT
 
 ROTATE:
 		mov		TMP, SHIFT
 		and		TMP, MASK
 		out     PORTB, TMP
-        ret
-
-
-;;; Function shifts the register to the left in cyclic manner.
-;;;
-ROTATE_LEFT:
-        bst     SHIFT, 7
-        rol     SHIFT
-        bld     SHIFT, 0
-        ret
-
-
-;;; Function shifts the register to the right in cyclic manner.
-;;;
-ROTATE_RIGHT:
-        bst     SHIFT, 0
-        ror     SHIFT
-        bld     SHIFT, 7
         ret
 
 .exit
