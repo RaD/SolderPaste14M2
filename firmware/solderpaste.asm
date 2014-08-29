@@ -17,12 +17,15 @@
 .def	TMP		= R21
 .def	SHIFT	= R16
 .def	MASK	= R17
-.def	MODE	= R18	; current mode
-.def	CHG		= R19	; 
-.def	DELAY 	= R20	; delay counter
+.def    STATE   = R18   ; status
+.def	DELAY 	= R19	; delay counter
+.def    CHANGE  = R20   ; used for EOR
 
-		.CSEG
-		.org	0x0000
+.equ    MOTOR_BIT = 0 ; if set, motor is running
+.equ    DIR_BIT   = 1 ; if set, rotating left
+
+.cseg
+.org	0x0000
 
 		rjmp	RESET
 		rjmp	EXT_INT0	; IRQ0 Handler
@@ -37,7 +40,8 @@
 
 ; Unused vectors are simple return to program
 
-		.org	0x000A
+.org	0x000A
+
 EXT_INT0:
 TIM0_OVF:
 EE_RDY:
@@ -60,16 +64,17 @@ RESET:
 		cpi		TMP, (1<<EXTRF)
 		breq	MODE_SWITCH
 
-		; set initial TMPues
-		ldi		SHIFT, 0b00110011		; shift TMPue
-		ldi		MASK, 0b00001111		; shift mask
-		ldi		MODE, 1					; current mode
-		ldi		CHG, 1					; switcher
+		; set initial values
+		ldi		SHIFT, 0b00110011   ; shift value
+		ldi		MASK, 0b00001111    ; shift mask
+        ldi     STATE, (1<<DIR_BIT) ; initial
+        mov     CHANGE, STATE       ; register is needed for EOR
+
 
 MODE_SWITCH:
 		; switch current mode
-		eor		MODE, CHG			; 0 x 1 => 1, 1 x 1 => 0
-
+        ; 0 x 1 => 1, 1 x 1 => 0
+		eor		STATE, CHANGE
 
 		; clear MCUSR register after Reset
 		ldi		TMP, 0
@@ -93,32 +98,67 @@ MODE_SWITCH:
 
 		sei							; global interrupt enable
 
-; Main Loop
+;;; Main Loop
+;;;
 MAIN:
-		nop
+        sbrc    STATE, MOTOR_BIT    ; skip if bit cleared
+        rcall   ROTATION
 		;sleep
 		rjmp	MAIN
-		
 
-; Button handler
-PC_INTO0:
-		push	TMP
 
-		cp		TMP, CHG
-		breq	REVERSE
+;;; Function checks the direction and rotate motor by one
+;;; step in particular direction.
+ROTATION:
+        sbrc    STATE, DIR_BIT  ; skip if bit cleared
+        rjmp    MOVE_RIGHT
 
-		rol		SHIFT
+        rcall   ROTATE_LEFT
 		rjmp	ROTATE
 
-REVERSE:
-		ror		SHIFT
+MOVE_RIGHT:
+        rcall   ROTATE_RIGHT
 
 ROTATE:
 		mov		TMP, SHIFT
 		and		TMP, MASK
 		out     PORTB, TMP
+        ret
+
+
+;;; Function shifts the register to the left in cyclic manner.
+;;;
+ROTATE_LEFT:
+        bst     SHIFT, 7
+        rol     SHIFT
+        bld     SHIFT, 0
+        ret
+
+
+;;; Function shifts the register to the right in cyclic manner.
+;;;
+ROTATE_RIGHT:
+        bst     SHIFT, 0
+        ror     SHIFT
+        bld     SHIFT, 7
+        ret
+
+
+;;; Pin Change Interrupt Handler
+;;; It just changes the MOTOR_BIT in status register.
+PC_INTO0:
+		push	TMP
+
+        sbr     STATE, (1<<MOTOR_BIT)   ; guess button is pressed
+        sbic    PINB, 4                 ; check button state, if pressed
+                                        ; skip the next command
+        cbr     STATE, (1<<MOTOR_BIT)   ; button isn't pressed
+
+        ; finish interrupt
+        ldi     TMP, (1<<PCIF)
+        out     GIFR, TMP
 
 		pop		TMP
 		reti
 
-		.exit
+.exit
