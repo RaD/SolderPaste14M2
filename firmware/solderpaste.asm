@@ -42,6 +42,23 @@
 
 .org	0x000A
 
+;;; Pin Change Interrupt Handler
+;;; It just changes the MOTOR_BIT in status register.
+PC_INTO0:
+		push	TMP
+
+        sbr     STATE, (1<<MOTOR_BIT)   ; guess button is pressed
+        sbic    PINB, 4                 ; check button state, if pressed
+                                        ; skip the next command
+        cbr     STATE, (1<<MOTOR_BIT)   ; button isn't pressed
+
+        ; finish interrupt
+        ldi     TMP, (1<<PCIF)
+        out     GIFR, TMP
+
+		pop		TMP
+
+        ; dirty hack :)
 EXT_INT0:
 TIM0_OVF:
 EE_RDY:
@@ -142,23 +159,5 @@ ROTATE_RIGHT:
         ror     SHIFT
         bld     SHIFT, 7
         ret
-
-
-;;; Pin Change Interrupt Handler
-;;; It just changes the MOTOR_BIT in status register.
-PC_INTO0:
-		push	TMP
-
-        sbr     STATE, (1<<MOTOR_BIT)   ; guess button is pressed
-        sbic    PINB, 4                 ; check button state, if pressed
-                                        ; skip the next command
-        cbr     STATE, (1<<MOTOR_BIT)   ; button isn't pressed
-
-        ; finish interrupt
-        ldi     TMP, (1<<PCIF)
-        out     GIFR, TMP
-
-		pop		TMP
-		reti
 
 .exit
