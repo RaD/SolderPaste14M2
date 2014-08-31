@@ -23,17 +23,17 @@
 
 
 ; Register defines:
-.def	TMP		= R21
-.def	SHIFT	= R16
-.def	MASK	= R17
-.def    STATE   = R18   ; status
-.def	DELAY 	= R19	; delay counter
-.def    CHANGE  = R20   ; used for EOR
+.def    TMP     = R21
+.def    SHIFT   = R16
+.def    MASK    = R17
+.def    STATE   = R18    ; status
+.def    DELAY   = R19    ; delay counter
+.def    CHANGE  = R20    ; used for EOR
 
-.equ    MOTOR_BIT = 0 ; if set, motor is running
-.equ    DIR_BIT   = 1 ; if set, rotating left
+.equ    MOTOR_BIT = 0    ; if set, motor is running
+.equ    DIR_BIT   = 1    ; if set, rotating left
 .equ    PAUSE     = 0xEA ; it is about 100ms for current prescaler
-                        ; 9375kHz/10/4 (ticks per delay loop)
+                         ; 9375kHz/10/4 (ticks per delay loop)
 
 ;;; Write to port macro.
 .macro outm
@@ -57,27 +57,27 @@
 
 
 .cseg
-.org	0x0000
+.org    0x0000
 
-		rjmp	RESET
-		rjmp	EXT_INT0	; IRQ0 Handler
-		rjmp	PC_INTO0	; Pin Change Interrupt Handler
-		rjmp	TIM0_OVF	; Timer0 Overflow Handler
-		rjmp	EE_RDY		; EEPROM Ready Handler
-		rjmp	ANA_COMP	; Analog Comparator Handler
-		rjmp	TIM0_COMPA	; Timer0 CompareA Handler
-		rjmp	TIM0_COMPB	; Timer0 CompareB Handler
-		rjmp	WDT_OVF		; Watchdog Timer Overflow Handler
-		rjmp	ADC_RDY		; ADC Conversion Complete Interrupt Handler
+        rjmp    RESET
+        rjmp    EXT_INT0      ; IRQ0 Handler
+        rjmp    PC_INTO0      ; Pin Change Interrupt Handler
+        rjmp    TIM0_OVF      ; Timer0 Overflow Handler
+        rjmp    EE_RDY        ; EEPROM Ready Handler
+        rjmp    ANA_COMP      ; Analog Comparator Handler
+        rjmp    TIM0_COMPA    ; Timer0 CompareA Handler
+        rjmp    TIM0_COMPB    ; Timer0 CompareB Handler
+        rjmp    WDT_OVF       ; Watchdog Timer Overflow Handler
+        rjmp    ADC_RDY       ; ADC Conversion Complete Interrupt Handler
 
 ; Unused vectors are simple return to program
 
-.org	0x000A
+.org    0x000A
 
 ;;; Pin Change Interrupt Handler
 ;;; It just changes the MOTOR_BIT in status register.
 PC_INTO0:
-		push	TMP
+        push    TMP
 
         sbr     STATE, (1<<MOTOR_BIT)   ; guess button is pressed
         sbic    PINB, 4                 ; check button state, if pressed
@@ -87,7 +87,7 @@ PC_INTO0:
         ; finish interrupt
         outm    GIFR, (1<<PCIF)
 
-		pop		TMP
+        pop     TMP
 
         ; dirty hack :)
 EXT_INT0:
@@ -98,12 +98,12 @@ TIM0_COMPA:
 TIM0_COMPB:
 WDT_OVF:
 ADC_RDY:
-		reti
+        reti
 
 ; MCU initialization and main loop
 
 RESET:
-		; stack init
+        ; stack init
         outm    SPL, low(RAMEND)
 
         ; slowdown the MCU
@@ -112,46 +112,46 @@ RESET:
 
         ldi     CHANGE, (1<<DIR_BIT) ; change mask
 
-		; check the reset type
-		in		TMP, MCUSR
-		cpi 	TMP, (1<<EXTRF)
+        ; check the reset type
+        in      TMP, MCUSR
+        cpi     TMP, (1<<EXTRF)
         breq    MODE_SWITCH
 
         ldi     STATE, (1<<DIR_BIT) ; rotating
 
 MODE_SWITCH:
         eor     STATE, CHANGE
-		outm	MCUSR, 0    ; clearing is mandatory
+        outm    MCUSR, 0    ; clearing is mandatory
 
-		; set initial values
-		ldi		SHIFT, 0b00110011   ; shift value
-		ldi		MASK, 0b00001111    ; shift mask
+        ; set initial values
+        ldi     SHIFT, 0b00110011   ; shift value
+        ldi     MASK, 0b00001111    ; shift mask
         ldi     DELAY, PAUSE
 
 
-		; setup interrupt
-		outm	GIMSK, (1<<PCIE)	; enable Pin Change interrupt
-		outm	PCMSK, (1<<PCINT4)	; on PB4
+        ; setup interrupt
+        outm    GIMSK, (1<<PCIE)    ; enable Pin Change interrupt
+        outm    PCMSK, (1<<PCINT4)  ; on PB4
 
 
-		; setup port
-		outm    DDRB, (1<<DDB3)|(1<<DDB2)|(1<<DDB1)|(1<<DDB0)
+        ; setup port
+        outm    DDRB, (1<<DDB3)|(1<<DDB2)|(1<<DDB1)|(1<<DDB0)
 
 
-		sbi		PORTB, PORTB4		; enable pullup on PB4
+        sbi     PORTB, PORTB4       ; enable pullup on PB4
 
-		; enable interrupt on any change and activate pullups
-		outm    MCUCR, (1<<ISC00) | (1<<PUD)
+        ; enable interrupt on any change and activate pullups
+        outm    MCUCR, (1<<ISC00) | (1<<PUD)
 
-		sei							; global interrupt enable
+        sei                         ; global interrupt enable
 
 ;;; Main Loop
 ;;;
 MAIN:
         sbrc    STATE, MOTOR_BIT    ; skip if bit cleared
         rcall   ROTATION
-		;sleep
-		rjmp	MAIN
+        ;sleep
+        rjmp    MAIN
 
 
 ;;; Function checks the direction and rotate motor by one
@@ -161,15 +161,15 @@ ROTATION:
         rjmp    MOVE_RIGHT
 
         rolm    SHIFT
-		rjmp	ROTATE
+        rjmp    ROTATE
 
 MOVE_RIGHT:
         rorm    SHIFT
 
 ROTATE:
-		mov		TMP, SHIFT
-		and		TMP, MASK
-		out     PORTB, TMP
+        mov     TMP, SHIFT
+        and     TMP, MASK
+        out     PORTB, TMP
         rcall   DELAYING
         ret
 
