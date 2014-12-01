@@ -114,12 +114,8 @@ RESET:
 
         ; check the reset type
         in      TMP, MCUSR
-        cpi     TMP, (1<<EXTRF)
-        breq    MODE_SWITCH
-
+        sbrs    TMP, EXTRF
         ldi     STATE, (1<<DIR_BIT) ; rotating
-
-MODE_SWITCH:
         eor     STATE, CHANGE
         outm    MCUSR, 0    ; clearing is mandatory
 
@@ -128,15 +124,12 @@ MODE_SWITCH:
         ldi     MASK, 0b00001111    ; shift mask
         ldi     DELAY, PAUSE
 
-
         ; setup interrupt
         outm    GIMSK, (1<<PCIE)    ; enable Pin Change interrupt
         outm    PCMSK, (1<<PCINT4)  ; on PB4
 
-
         ; setup port
         outm    DDRB, (1<<DDB3)|(1<<DDB2)|(1<<DDB1)|(1<<DDB0)
-
 
         sbi     PORTB, PORTB4       ; enable pullup on PB4
 
