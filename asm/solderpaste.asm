@@ -103,6 +103,14 @@ ADC_RDY:
 ; MCU initialization and main loop
 
 RESET:
+        ; check the reset type
+        ;in      TMP, MCUSR
+        ;outm    MCUSR, 0    ; clearing is mandatory
+        ;ldi     CHANGE, (1<<DIR_BIT) ; change mask
+        ;sbrs    TMP, EXTRF
+        ;ldi     STATE, (1<<DIR_BIT) ; rotating
+        ;eor     STATE, CHANGE
+
         ; stack init
         outm    SPL, low(RAMEND)
 
@@ -110,14 +118,6 @@ RESET:
         outm    CLKPR, (1<<CLKPCE)  ; activate prescaler change
         outm    CLKPR, (1<<CLKPS2) | (1<<CLKPS1) | (1<<CLKPS0) ; /128
 
-        ldi     CHANGE, (1<<DIR_BIT) ; change mask
-
-        ; check the reset type
-        in      TMP, MCUSR
-        sbrs    TMP, EXTRF
-        ldi     STATE, (1<<DIR_BIT) ; rotating
-        eor     STATE, CHANGE
-        outm    MCUSR, 0    ; clearing is mandatory
 
         ; set initial values
         ldi     SHIFT, 0b00110011   ; shift value
@@ -140,6 +140,7 @@ RESET:
 
 ;;; Main Loop
 ;;;
+        ldi     STATE, (1<<DIR_BIT)
 MAIN:
         sbrc    STATE, MOTOR_BIT    ; skip if bit cleared
         rcall   ROTATION
